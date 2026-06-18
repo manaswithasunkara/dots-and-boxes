@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: monospace;
+    gap: 8px;
+    padding: 10px;
+  }
+  canvas { display:block; cursor:default; border-radius:4px; }
+  #status-bar {
+    font-size: 13px;
+    color: #ccc;
+    background: #1a1a2e;
+    border-radius: 6px;
+    padding: 4px 14px;
+    letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+<div id="status-bar">Waiting for game to start...</div>
+<canvas id="game-canvas"></canvas>
+
+<script>
+// ─── YOUR ORIGINAL JS (unchanged) ────────────────────────────────────────────
+
+const DELAY_END= 2;
+const HEIGHT= 550;
+const FPS= 30;
+const GRID_SIZE= 5;
+
+const WIDTH= HEIGHT*0.9;
+const CELL= WIDTH/(GRID_SIZE +2);
+const STROKE= CELL/12;
+const DOT= STROKE;
+const MARGIN = HEIGHT - (GRID_SIZE +1)* CELL;
+
+const canvas= document.getElementById("game-canvas");
+canvas.height= HEIGHT;
+canvas.width= WIDTH;
+
+var ctx= canvas.getContext("2d");
+ctx.lineWidth= STROKE;
+ctx.textAlign= "center";
+ctx.textBaseline= "middle";
+
+let playersTurn= true;
+let squares=[];
+let scorep1=0;
+let scorep2=0;
+let timeEnd=0;
+let gameActive=false;
+
+// NOTE: mouse handlers removed — AI controls the game
+// canvas.addEventListener("mousemove", highlightGrid);
+// canvas.addEventListener("click", click);
+
+const COLOR_BOARD= "cornsilk";
+const COLOR_BORDER= "wheat";
+const COLOR_DOT= "sienna";
+const COLOR_PLAY1= "crimson";
+const COLOR_PLAY1_LIT= "lightpink";
+const COLOR_PLAY2= "royalblue";
+const COLOR_PLAY2_LIT= "lightsteelblue";
+const COLOR_TIE= "black";
+
+const TEXT_PLAYER1= "Gemma4-4B";
+const TEXT_P1_SML= "G";
+const TEXT_PLAYER2= "Qwen3-4B";
+const TEXT_P2_SMALL= "Q";
+const TEXT_SIZE_CELL= CELL /3;
+const TEXT_SIZE_TOP= MARGIN/6;
+const TEXT_TIE= "DRAW!!";
+const TEXT_WIN_P1= "GEMMA WINS!";
+const TEXT_WIN_P2= "QWEN WINS!";
+
+const Side={
+    BOT:0,
+    LEFT:1,
+    RIGHT:2,
+    TOP: 3
+}
+
+function loop(){
+    drawBoard();
+    drawSquares();
+    drawGrid();
+    drawScores();
+}
+
+function drawBoard(){
+    ctx.fillStyle= COLOR_BOARD;
+    ctx.strokeStyle= COLOR_BORDER;
+    ctx.fillRect(0,0, WIDTH, HEIGHT);
+    ctx.strokeRect(STROKE/2, STROKE/2, WIDTH-STROKE, HEIGHT-STROKE );
+}
+
+function drawDot(x,y){
+    ctx.fillStyle= COLOR_DOT;
+    ctx.beginPath();
+    ctx.arc(x,y,DOT,0,Math.PI *2);
+    ctx.fill();
+}
+
+function getColor(player1, light){
+    if (player1){
+        return light ? COLOR_PLAY1_LIT: COLOR_PLAY1;
+    } else {
+        return light ? COLOR_PLAY2_LIT: COLOR_PLAY2;
+    }
+}
+
+function getText(player1, small){
+    if (player1){
+        return small? TEXT_P1_SML: TEXT_PLAYER1;
+    }else{
+        return small? TEXT_P2_SMALL: TEXT_PLAYER2;
+    }
+}
+
+function getGridX(col){
+    return CELL *(col+1);
+}
+
+function getGridY(row){
+    return MARGIN + CELL *row;
+}
+
+function drawGrid(){
+    for (let i =0; i< GRID_SIZE +1; i++){
+        for (let j=0; j< GRID_SIZE +1; j++){
+            drawDot(getGridX(j), getGridY(i));
+        }
+    }
+}
+
+function drawLine(x0, y0, x1, y1, color){
+    ctx.strokeStyle= color;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+}
+
+function drawScores(){
+    let colP1= playersTurn? COLOR_PLAY1: COLOR_PLAY1_LIT;
+    let colP2= playersTurn? COLOR_PLAY2_LIT: COLOR_PLAY2;
+    drawText(TEXT_PLAYER1, WIDTH * 0.25, MARGIN *0.25, colP1, TEXT_SIZE_TOP);
+    drawText(scorep1, WIDTH * 0.25, MARGIN *0.6, colP1, TEXT_SIZE_TOP*2);
+    drawText(TEXT_PLAYER2, WIDTH * 0.75, MARGIN *0.25, colP2, TEXT_SIZE_TOP);
+    drawText(scorep2, WIDTH * 0.75, MARGIN *0.6, colP2, TEXT_SIZE_TOP*2);
+
+    // game over text
+    if(timeEnd > 0){
+        timeEnd--;
+        if (scorep2 == scorep1){
+            drawText(TEXT_TIE, WIDTH*0.5, MARGIN * 0.6, COLOR_TIE, TEXT_SIZE_TOP);
+        } else {
+            let p1Wins= scorep1 > scorep2;
+            let color= p1Wins? COLOR_PLAY1: COLOR_PLAY2;
+            let text= p1Wins? TEXT_WIN_P1: TEXT_WIN_P2;
+            drawText(text, WIDTH*0.5, MARGIN * 0.6, color, TEXT_SIZE_TOP);
+        }
+        if (timeEnd==0){
+            newGame();
+        }
+    }
+}
+
+function drawSquares(){
+    for (let row of squares){
+        for (let square of row){
+            square.drawSides();
+            square.drawFill();
+        }
+    }
+}
+
+function drawText(text, x, y, color, size){
+    ctx.fillStyle= color;
+    ctx.font= size + "px dejavu sans mono";
+    ctx.fillText(text, x,y);
+}
+
+function newGame(){
+    playersTurn= true;   // Python will set the real first turn via postMessage
+    scorep1= 0;
+    scorep2= 0;
+    timeEnd= 0;
+    squares= [];
+    for (let i =0; i< GRID_SIZE; i++){
+        squares[i]=[];
+        for (let j =0; j< GRID_SIZE; j++){
+            squares[i][j]= new Square(getGridX(j), getGridY(i), CELL, CELL);
+        }
+    }
+}
+
+function Square(x, y, w, h){
+    this.w=w;
+    this.h=h;
+    this.left= x;
+    this.right= x+w;
+    this.top= y;
+    this.bot= y+h;
+    this.highlight= null;
+    this.numSelected= 0;
+    this.owner= null;
+    this.sideBot=   {owner:null, selected:false}
+    this.sideLeft=  {owner:null, selected:false}
+    this.sideRight= {owner:null, selected:false}
+    this.sideTop=   {owner:null, selected:false}
+
+    this.contains= function(x, y){
+        return x >= this.left && x< this.right && y>=this.top && y< this.bot;
+    }
+
+    this.drawFill = function(){
+        if (this.owner == null){ return; }
+        ctx.fillStyle= getColor(this.owner, true);
+        ctx.fillRect(
+            this.left + STROKE, this.top + STROKE,
+            this.w- STROKE*2, this.h- STROKE*2
+        );
+        drawText(
+            getText(this.owner, true),
+            this.left+ this.w/2,
+            this.top+ this.h/2,
+            getColor(this.owner, false),
+            TEXT_SIZE_CELL
+        );
+    }
+
+    this.drawSide= function(side, color){
+        switch(side){
+            case Side.BOT:   drawLine(this.left, this.bot,   this.right, this.bot,  color); break;
+            case Side.LEFT:  drawLine(this.left, this.top,   this.left,  this.bot,  color); break;
+            case Side.RIGHT: drawLine(this.right,this.top,   this.right, this.bot,  color); break;
+            case Side.TOP:   drawLine(this.left, this.top,   this.right, this.top,  color); break;
+        }
+    }
+
+    this.drawSides= function(){
+        if (this.sideBot.selected)   this.drawSide(Side.BOT,   getColor(this.sideBot.owner,   false));
+        if (this.sideLeft.selected)  this.drawSide(Side.LEFT,  getColor(this.sideLeft.owner,  false));
+        if (this.sideRight.selected) this.drawSide(Side.RIGHT, getColor(this.sideRight.owner, false));
+        if (this.sideTop.selected)   this.drawSide(Side.TOP,   getColor(this.sideTop.owner,   false));
+    }
+
+    // CHANGED: accepts explicit (side, owner) from postMessage instead of
+    // reading the global playersTurn — Python is the source of truth for owner
+    this.selectSide= function(side, owner){
+        switch(side){
+            case Side.BOT:   this.sideBot.owner=owner;   this.sideBot.selected=true;   break;
+            case Side.LEFT:  this.sideLeft.owner=owner;  this.sideLeft.selected=true;  break;
+            case Side.RIGHT: this.sideRight.owner=owner; this.sideRight.selected=true; break;
+            case Side.TOP:   this.sideTop.owner=owner;   this.sideTop.selected=true;   break;
+        }
+        this.numSelected++;
+        if(this.numSelected===4){
+            this.owner= owner;
+            return true;
+        }
+        return false;
+    };
+}
+
+// ─── postMessage bridge — Python → canvas ────────────────────────────────────
+// Payload shapes:
+//   { type:"reset" }
+//   { type:"status", text:"..." }
+//   { type:"move", t:"h"|"v", r:int, c:int,
+//     player:0|1, scorep1:int, scorep2:int, next_turn:0|1 }
+
+window.addEventListener("message", function(ev){
+    const data= ev.data;
+    if (!data || !data.type) return;
+
+    if (data.type === "reset"){
+        newGame();
+        gameActive= true;
+        document.getElementById("status-bar").textContent= "Game started!";
+        return;
+    }
+
+    if (data.type === "status"){
+        document.getElementById("status-bar").textContent= data.text;
+        return;
+    }
+
+    if (data.type === "move"){
+        const {t, r, c, player, scorep1: s1, scorep2: s2, next_turn}= data;
+
+        // owner: true = P1/Gemma (player===0), false = P2/Qwen (player===1)
+        const owner= (player === 0);
+
+        // h[r][c] → BOT of square[r-1][c]  +  TOP of square[r][c]
+        // v[r][c] → RIGHT of square[r][c-1] + LEFT of square[r][c]
+        if (t === "h"){
+            if (r > 0       && c < GRID_SIZE) squares[r-1][c].selectSide(Side.BOT,   owner);
+            if (r < GRID_SIZE && c < GRID_SIZE) squares[r][c].selectSide(Side.TOP,   owner);
+        } else {
+            if (c > 0       && r < GRID_SIZE) squares[r][c-1].selectSide(Side.RIGHT, owner);
+            if (c < GRID_SIZE && r < GRID_SIZE) squares[r][c].selectSide(Side.LEFT,  owner);
+        }
+
+        // Python is source of truth — set scores and turn directly
+        scorep1=      s1;
+        scorep2=      s2;
+        playersTurn= (next_turn === 0);
+
+        // trigger game-over animation
+        if (s1 + s2 >= GRID_SIZE * GRID_SIZE && timeEnd === 0){
+            timeEnd= Math.ceil(DELAY_END * FPS);
+        }
+
+        document.getElementById("status-bar").textContent=
+            (next_turn === 0) ? "Gemma 🌸 thinking..." : "Qwen 🐉 thinking...";
+    }
+});
+
+// ─── Start ────────────────────────────────────────────────────────────────────
+newGame();
+setInterval(loop, 1000/FPS);
+</script>
+</body>
+</html>
