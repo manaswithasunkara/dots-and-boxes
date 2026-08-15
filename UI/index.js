@@ -240,6 +240,8 @@ function selectSide(){
     }
     currentCells=[];
 
+
+
     //check for winner
     if (filledSquare){
         if (scorePlay + scoreComp=== GRID_SIZE * GRID_SIZE){
@@ -251,6 +253,8 @@ function selectSide(){
         //next players turn
         players2Turn= !players2Turn;
     }
+    // send updated state to python
+    gameState();
 
     }
 
@@ -466,4 +470,57 @@ function Square(x,y,w,h){
         return false;
 
     }
+}
+
+async function gameState(){
+
+    const gameState= {
+        players2Turn: players2Turn,
+        scoreComp:scoreComp,
+        scorePlay:scorePlay,
+
+        squares: squares.map(row=>
+        row.map(square=>({
+            owner: square.owner,
+            numSelected: square.numSelected,
+
+            sideBot: {
+                owner: square.sideBot.owner,
+                selected: square.sideBot.selected
+            },
+
+            sideLeft: {
+                owner: square.sideLeft.owner,
+                selected: square.sideLeft.selected
+            },
+
+            sideRight: {
+                owner: square.sideRight.owner,
+                selected: square.sideRight.selected
+            },
+
+            sideTop: {
+                owner: square.sideTop.owner,
+                selected:square.sideTop.selected
+            }
+        })))
+    };
+
+    try{
+        const response= await fetch("http://localhost:8000/game-state",{
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(gameState)
+        });
+
+        console.log("Status:", response.status)
+        const result= await response.text()
+
+        console.log("Backend Response:", result);
+    }catch(error){
+        console.error("Failed to send game state: ", error);
+    }
+
 }
