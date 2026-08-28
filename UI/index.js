@@ -56,7 +56,7 @@ ctx.textBaseline= "middle";
 
 // set game variables
 var currentCells,players2Turn, squares;
-var scoreComp, scorePlay;
+var scoreQwen, scoreGemma;
 var timeEnd;
 
 
@@ -211,8 +211,8 @@ function newGame(){
 
     currentCells=[]
     players2Turn= Math.random()>=0.5;
-    scoreComp=0;
-    scorePlay=0;
+    scoreQwen=0;
+    scoreGemma=0;
     timeEnd=0;
     // set up he squares
     squares=[]
@@ -244,7 +244,7 @@ function selectSide(){
 
     //check for winner
     if (filledSquare){
-        if (scorePlay + scoreComp=== GRID_SIZE * GRID_SIZE){
+        if (scoreGemma + scoreQwen=== GRID_SIZE * GRID_SIZE){
             //GAME OVER
             timeEnd= Math.ceil(DELAY_END * FPS);
 
@@ -281,19 +281,19 @@ function drawScores(){
     let colComp= players2Turn ? COLOR_P1: COLOR_P1_LIT;
     let colPlay= players2Turn? COLOR_P2_LIT: COLOR_P2;
     drawText(TEXT_P2, WIDTH * 0.25, MARGIN * 0.25, colPlay, TEXT_SIZE_TOP);
-    drawText(scorePlay, WIDTH *0.25, MARGIN *0.5, colPlay, TEXT_SIZE_TOP );
+    drawText(scoreGemma, WIDTH *0.25, MARGIN *0.5, colPlay, TEXT_SIZE_TOP );
     drawText(TEXT_P1, WIDTH * 0.75, MARGIN * 0.25, colComp, TEXT_SIZE_TOP);
-    drawText(scoreComp,WIDTH * 0.75, MARGIN *0.5, colComp, TEXT_SIZE_TOP);
+    drawText(scoreQwen,WIDTH * 0.75, MARGIN *0.5, colComp, TEXT_SIZE_TOP);
 
     // game over text
     if(timeEnd > 0){
         timeEnd ++;
 
         //handle a tie
-        if(scoreComp === scorePlay){
+        if(scoreQwen === scoreGemma){
             drawText(TEXT_TIE,WIDTH * 0.5, MARGIN *0.6, COLOR_TIE, TEXT_SIZE_TOP);
         }else{
-            let playerWins= scorePlay > scoreComp;
+            let playerWins= scoreGemma > scoreQwen;
             let color= playerWins? COLOR_P2: COLOR_P1;
             let text= playerWins? TEXT_P2: TEXT_P1;
             drawText(text, WIDTH * 0.5, MARGIN * 0.6, color, TEXT_SIZE_TOP);
@@ -457,9 +457,9 @@ function Square(x,y,w,h){
 
             //increment score
             if(players2Turn){
-                scoreComp++;
+                scoreQwen++;
             }else{
-                scorePlay++;
+                scoreGemma++;
             }
 
             //filled
@@ -476,8 +476,8 @@ async function gameState(){
 
     const gameState= {
         players2Turn: players2Turn,
-        scoreComp:scoreComp,
-        scorePlay:scorePlay,
+        scoreQwen:scoreQwen,
+        scoreGemma:scoreGemma,
 
         squares: squares.map(row=>
         row.map(square=>({
